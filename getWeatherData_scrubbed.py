@@ -2,6 +2,7 @@ mport paho.mqtt.client as mqtt
 from prometheus_client import start_http_server, Summary, Gauge
 import time
 import datetime
+import sqlite3
 
 temp = Gauge('temperature', 'Weather Station Temperature')
 hum = Gauge('humidity', 'Weather Station Humidity')
@@ -24,8 +25,12 @@ def on_connect(client, userdata, flags, rc):
 
 def process_request(msg):
     """A function to read wifi."""
+    timedat = datetime.datetime.now()
     print("Current Time:",datetime.datetime.now())
     print(msg.topic + ' ' + str(msg.payload))
+
+    cur.execute('INSERT INTO weatherData (timedat, name, value) values (str(timedat), str(msg.payload),str(msg.payload))')
+    conn.commit()
 
     if msg.topic ==  'outdoor/weather/temperature':
         temp.set(msg.payload)
@@ -42,8 +47,16 @@ def on_message(client, userdata, msg):
     """The callback for when a PUBLISH message is received from the server."""
     process_request(msg)
 
+def setup_database():
+    conn = sqlite3.connect('YOUR PATH')
+    cur = conn.cursor()
+    cur.execute('CREATE TABLE weatherData (timedat VARCHAR, name VARCHAR, value VARCHAR)')
+    conn.commit()
+
 def main():
     start_http_server(8000)
+    setup_database()
+
 
     mqtt_client = mqtt.Client(MQTT_CLIENT_ID)
     mqtt_client.username_pw_set(MQTT_USER, MQTT_PASSWORD)
