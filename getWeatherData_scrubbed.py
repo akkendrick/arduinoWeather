@@ -3,6 +3,10 @@ from prometheus_client import start_http_server, Summary, Gauge
 import time
 import datetime
 import sqlite3
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 temp = Gauge('temperature', 'Weather Station Temperature')
 hum = Gauge('humidity', 'Weather Station Humidity')
@@ -10,9 +14,9 @@ alt = Gauge('altitude', 'Weather Station Altitude')
 pres = Gauge('pressure', 'Weather Station Pressure')
 
 ############ modify this for your config ##############
-MQTT_ADDRESS = 
-MQTT_USER = ''
-MQTT_PASSWORD = ''
+MQTT_ADDRESS = os.environ.get("MQTT_ADDRESS") 
+MQTT_USER = os.environ.get("MQTT_USER") 
+MQTT_PASSWORD = os.environ.get("MQTT_PASSWORD") 
 MQTT_TOPIC = 'outdoor/weather/temperature'
 MQTT_REGEX = 'home/([^/]+)/([^/]+)'
 MQTT_CLIENT_ID = 'raspberrypi'
