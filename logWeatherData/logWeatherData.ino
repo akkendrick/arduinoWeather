@@ -148,7 +148,6 @@ void getBMEData(float bmeData[4]) {
 void setup() {
     Serial.begin(9600);
     while(!Serial);    // time to get serial running
-    Serial.println(F("Send data test"));
     
     rtc.begin(); // enable real time clock functionalities
 
@@ -160,7 +159,7 @@ void setup() {
 
 
 void loop() {
-  Serial.println("Looping");
+
   connect_MQTT();
   delay(10); // This delay ensures that client.publish doesn't clash with the client.connect call
   
@@ -169,20 +168,20 @@ void loop() {
 
 
   // MQTT can only transmit strings
-
-  bmeHumid = bmeData[3];
-  bmeTemp = bmeData[0];
-  
-  String bmeTempStr=": "+String((float)bmeTemp)+" % ";
-  String bmeHumidStr=": "+String((float)bmeHumid)+" % ";
+ 
+  String bmeTempStr=": "+String((float)bmeData[0])+" % ";
+  String bmeHumidStr=": "+String((float)bmeData[3])+" % ";
   String bmeAltStr=": "+String((float)bmeData[2])+" % ";
   String bmePressureStr=": "+String((float)bmeData[1])+" % ";
 
 
   // PUBLISH to the MQTT Broker (topic = Humidity, defined at the beginning)
   if (client.publish(temp_topic, String(bmeTemp).c_str())) {
+    delay(10); // This delay ensures that BME data upload is all good
     client.publish(humid_topic, String(bmeHumid).c_str());
+    delay(10); // This delay ensures that BME data upload is all good
     client.publish(altitude_topic, String(bmeAlt).c_str());
+    delay(10); // This delay ensures that BME data upload is all good
     client.publish(pressure_topic, String(bmePressure).c_str());
 
     Serial.println("Weather data sent!");
@@ -194,27 +193,27 @@ void loop() {
     client.connect(clientID, mqtt_username, mqtt_password);
     delay(10); // This delay ensures that client.publish doesn't clash with the client.connect call
     client.publish(temp_topic, String(bmeTemp).c_str());
+    delay(10); // This delay ensures that BME data upload is all good
     client.publish(humid_topic, String(bmeHumid).c_str());
+    delay(10); // This delay ensures that BME data upload is all good
     client.publish(altitude_topic, String(bmeAlt).c_str());
+    delay(10); // This delay ensures that BME data upload is all good
     client.publish(pressure_topic, String(bmePressure).c_str());
   }
   client.disconnect();  // disconnect from the MQTT broker
   
   WiFi.end(); //turn off wifi before sleep
 
-  digitalWrite(LED_BUILTIN, LOW);    // turn the LED off by making the voltage LOW
-  digitalWrite(LED_BUILTIN, HIGH);    // turn the LED off by making the voltage LOW
-  delay(1000);   
-  digitalWrite(LED_BUILTIN, LOW);   // turn the LED on (HIGH is the voltage level)
-  delay(1000);    
+  delay(5000);   
+  digitalWrite(LED_BUILTIN, LOW);   
+
   Serial.println("Going to sleep");
 
   //float sleepTime = 900000; // Set to 15 minutes currently
   LowPower.sleep(900000);
 
 
-  Serial.println("Wake up?");
-
+  digitalWrite(LED_BUILTIN, HIGH);    
 
 
 }
