@@ -50,6 +50,14 @@ Adafruit_BME280 bme; // I2C
 unsigned long delayTime;
 unsigned int firstRun = 1;
 
+// the US-100 module has jumper cap on the back.
+unsigned int HighLen = 0;
+unsigned int LowLen  = 0;
+unsigned int Len_mm  = 0;
+
+int US100_temp = 0;
+
+
 /****************************************
 * Auxiliary Functions
 ****************************************/
@@ -142,6 +150,52 @@ void getBMEData(float bmeData[4]) {
     
 }
 
+void getUS100data(US100Data[2])  {
+  Serial1.begin(9600);    
+  while(!Serial1)
+
+  while(Serial1.available())
+   Serial1.read();    
+
+  Serial1.write(0X55);                           // trig US-100 begin to measure the distance
+    delay(500);                                   // delay 500ms to wait result
+  
+  if(Serial1.available() >= 2)                   // when receive 2 bytes 
+    {
+        HighLen = Serial1.read();                   // High byte of distance
+        LowLen  = Serial1.read();                   // Low byte of distance
+        Len_mm  = HighLen*256 + LowLen;            // Calculate the distance
+        if((Len_mm > 1) && (Len_mm < 10000))       // normal distance should between 1mm and 10000mm (1mm, 10m)
+        {
+            Serial.print("Present Length is: ");   // output the result to serial monitor
+            Serial.print(Len_mm, DEC);             // output the result to serial monitor
+            Serial.println("mm");                  // output the result to serial monitor
+        }
+    }
+
+    delay(500); 
+
+    while(Serial1.available())
+    Serial1.read();                   
+                                       // wait 500ms
+    Serial1.write(0X50);   // trig US-100 begin to measure the temperature
+    delay(500);            //delay 500ms to wait result
+    if(Serial1.available() >= 1)            //when receive 1 bytes 
+    {
+        US100_temp = Serial1.read();     //Get the received byte (temperature)
+        if((US100_temp > 1) && (US100_temp < 130))   //the valid range of received data is (1, 130)
+        {
+            US100_temp -= 45;                           //Real temperature = Received_Data - 45
+            Serial.print("Present Temperature is: ");          //output result
+            Serial.print(US100_temp, DEC);             //output result
+            Serial.println(" degree centigrade.");        //output result
+        }
+    }
+    delay(500);          
+}
+
+}
+
 /****************************************
  * Main Functions
 ****************************************/
@@ -155,6 +209,13 @@ void setup() {
    
 
     Serial.println();
+
+    Serial1.begin(9600);    
+    while(!Serial1);    
+
+    while(Serial1.available())
+    Serial1.read();    
+    
 }
 
 
