@@ -14,19 +14,19 @@
 #include <WiFiNINA.h>
 #include "arduino_secrets.h"
 
+// Define wifi parameters
 char ssid[] = SECRET_SSID;
 char pass[] = SECRET_PASS;
 int status = WL_IDLE_STATUS;     // the Wifi radio's status
 int INTERVAL = 1;
+
+// Define weather variables
 float bmeData[4];
-RTCZero rtc;
-
-float bmeTemp;
-float bmeHumid;
-float bmeAlt;
-float bmePressure;
-
 #define BME_PWR 6
+float US100Data[2];
+
+// Create an rtc object for tracking time
+RTCZero rtc;
 
 // MQTT
 const char* mqtt_server = "192.168.50.100";  // IP of the MQTT broker
@@ -34,6 +34,7 @@ const char* temp_topic = "outdoor/weather/temperature";
 const char* humid_topic = "outdoor/weather/humidity";
 const char* pressure_topic = "outdoor/weather/pressure";
 const char* altitude_topic = "outdoor/weather/altitude";
+const char* distance_topic = "outdoor/weather/distance";
 const char* mqtt_username = "akendrick"; // MQTT username
 const char* mqtt_password = "akendrick"; // MQTT password
 const char* clientID = "arduino"; // MQTT client ID
@@ -114,7 +115,13 @@ void connect_MQTT(){
 }
 
 void getBMEData(float bmeData[4]) {
-      bool BMEstarted = false;
+
+    float bmeTemp;
+    float bmeHumid;
+    float bmeAlt;
+    float bmePressure;
+
+    bool BMEstarted = false;
 
     // Power ON the BME280 board
     pinMode(BME_PWR, OUTPUT);
@@ -150,16 +157,16 @@ void getBMEData(float bmeData[4]) {
     
 }
 
-void getUS100data(US100Data[2])  {
+void getUS100Data(float US100Data[2])  {
   Serial1.begin(9600);    
-  while(!Serial1)
+  
+  while(Serial1.available())  
+  char t = Serial1.read(); 
 
-  while(Serial1.available())
-   Serial1.read();    
 
   Serial1.write(0X55);                           // trig US-100 begin to measure the distance
-    delay(500);                                   // delay 500ms to wait result
-  
+  delay(500);                                   // delay 500ms to wait result
+
   if(Serial1.available() >= 2)                   // when receive 2 bytes 
     {
         HighLen = Serial1.read();                   // High byte of distance
@@ -173,27 +180,12 @@ void getUS100data(US100Data[2])  {
         }
     }
 
-    delay(500); 
+    delay(1000);                
+                                                
 
-    while(Serial1.available())
-    Serial1.read();                   
-                                       // wait 500ms
-    Serial1.write(0X50);   // trig US-100 begin to measure the temperature
-    delay(500);            //delay 500ms to wait result
-    if(Serial1.available() >= 1)            //when receive 1 bytes 
-    {
-        US100_temp = Serial1.read();     //Get the received byte (temperature)
-        if((US100_temp > 1) && (US100_temp < 130))   //the valid range of received data is (1, 130)
-        {
-            US100_temp -= 45;                           //Real temperature = Received_Data - 45
-            Serial.print("Present Temperature is: ");          //output result
-            Serial.print(US100_temp, DEC);             //output result
-            Serial.println(" degree centigrade.");        //output result
-        }
-    }
-    delay(500);          
-}
 
+US100Data[0] = Len_mm;
+US100Data[1] = 0;
 }
 
 /****************************************
@@ -210,11 +202,9 @@ void setup() {
 
     Serial.println();
 
-    Serial1.begin(9600);    
-    while(!Serial1);    
+    Serial1.begin(9600);
+    while(!Serial1); 
 
-    while(Serial1.available())
-    Serial1.read();    
     
 }
 
@@ -225,7 +215,10 @@ void loop() {
   delay(10); // This delay ensures that client.publish doesn't clash with the client.connect call
   
   getBMEData(bmeData);
-    delay(10); // This delay ensures that BME data upload is all good
+  delay(10); // This delay ensures that BME data upload is all good
+
+  getUS100Data(US100Data);
+  delay(10); // This delay ensures that US100 data upload is all good
 
 
   // MQTT can only transmit strings
@@ -237,14 +230,18 @@ void loop() {
 
 
   // PUBLISH to the MQTT Broker (topic = Humidity, defined at the beginning)
-  if (client.publish(temp_topic, String(bmeTemp).c_str())) {
+  if (client.publish(temp_topic, String(bmeData[0]).c_str())) {
     delay(10); // This delay ensures that BME data upload is all good
-    client.publish(humid_topic, String(bmeHumid).c_str());
+    client.publish(humid_topic, String(bmeData[3]).c_str());
     delay(10); // This delay ensures that BME data upload is all good
-    client.publish(altitude_topic, String(bmeAlt).c_str());
+    client.publish(altitude_topic, String(bmeData[2]).c_str());
     delay(10); // This delay ensures that BME data upload is all good
-    client.publish(pressure_topic, String(bmePressure).c_str());
+    client.publish(pressure_topic, String(bmeData[1]).c_str());
+    delay(10);
+    client.publish(distance_topic, String(US100Data[0]).c_str());
+    delay(10);
 
+    
     Serial.println("Weather data sent!");
   }
   // Again, client.publish will return a boolean value depending on whether it succeded or not.
@@ -253,26 +250,25 @@ void loop() {
     Serial.println("Wifi Strength failed to send. Reconnecting to MQTT Broker and trying again");
     client.connect(clientID, mqtt_username, mqtt_password);
     delay(10); // This delay ensures that client.publish doesn't clash with the client.connect call
-    client.publish(temp_topic, String(bmeTemp).c_str());
+    client.publish(temp_topic, String(bmeData[0]).c_str());
     delay(10); // This delay ensures that BME data upload is all good
-    client.publish(humid_topic, String(bmeHumid).c_str());
+    client.publish(humid_topic, String(bmeData[3]).c_str());
     delay(10); // This delay ensures that BME data upload is all good
-    client.publish(altitude_topic, String(bmeAlt).c_str());
+    client.publish(altitude_topic, String(bmeData[2]).c_str());
     delay(10); // This delay ensures that BME data upload is all good
-    client.publish(pressure_topic, String(bmePressure).c_str());
+    client.publish(pressure_topic, String(bmeData[1]).c_str());
   }
   client.disconnect();  // disconnect from the MQTT broker
   
   WiFi.end(); //turn off wifi before sleep
 
-  delay(5000);   
   digitalWrite(LED_BUILTIN, LOW);   
 
   Serial.println("Going to sleep");
 
   //float sleepTime = 900000; // Set to 15 minutes currently
   LowPower.sleep(900000);
-
+ 
 
   digitalWrite(LED_BUILTIN, HIGH);    
 
