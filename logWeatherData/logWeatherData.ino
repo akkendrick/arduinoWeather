@@ -28,7 +28,7 @@ float US100Data[2];
 // Create an rtc object for tracking time
 RTCZero rtc;
 
-// MQTT
+// MQTT properties
 const char* mqtt_server = "192.168.50.100";  // IP of the MQTT broker
 const char* temp_topic = "outdoor/weather/temperature";
 const char* humid_topic = "outdoor/weather/humidity";
@@ -51,7 +51,7 @@ Adafruit_BME280 bme; // I2C
 unsigned long delayTime;
 unsigned int firstRun = 1;
 
-// the US-100 module has jumper cap on the back.
+// the US-100 module has the jumper cap on the back.
 unsigned int HighLen = 0;
 unsigned int LowLen  = 0;
 unsigned int Len_mm  = 0;
@@ -63,15 +63,12 @@ int US100_temp = 0;
 * Auxiliary Functions
 ****************************************/
 
-
-
 void printValues() {
     Serial.print("Temperature = ");
     Serial.print(bme.readTemperature());
     Serial.println(" °C");
 
     Serial.print("Pressure = ");
-
     Serial.print(bme.readPressure() / 100.0F);
     Serial.println(" hPa");
 
@@ -91,7 +88,6 @@ void connect_MQTT(){
   Serial.println(ssid);
 
   WiFi.begin(ssid, pass);
-
 
   // Wait until the connection has been confirmed before continuing
   while (WiFi.status() != WL_CONNECTED) {
@@ -131,15 +127,32 @@ void getBMEData(float bmeData[4]) {
     unsigned status;
     status = bme.begin();  
 
-    while(!status) {
-     Serial.println("Stuck in BME While");
-     // Try cycling BME280 power
+    int iter = 0;
+
+    if (!status) {
+      // Try restarting the BME 10 times
+      while(iter < 10) {
+        Serial.println("Stuck in BME Loop");
+        // Try cycling BME280 power
         digitalWrite(BME_PWR, LOW);
         delay(50);
         digitalWrite(BME_PWR, HIGH);
         delay(50);
+        iter++;
+
+        // Update status each iteration
         status = bme.begin();
+        if (status) {
+          break;
+        }
     }
+ 
+
+    }
+  
+    // Check if the BME is connected
+    if (status) {
+        Serial.println("BME connected, getting measurements");
 
         bmeTemp = bme.readTemperature();
         bmeData[0] = bmeTemp;
@@ -152,6 +165,16 @@ void getBMEData(float bmeData[4]) {
   
         bmeHumid = bme.readHumidity();
         bmeData[3] = bmeHumid;
+      }
+      else {
+        Serial.println("BME not connected");
+
+        bmeData[0] = 0;
+        bmeData[1] = 0;
+        bmeData[2] = 0;  
+        bmeData[3] = 0;
+      }
+
   
 
     
@@ -211,6 +234,8 @@ void setup() {
 
 void loop() {
 
+  float sleepTime;
+
   connect_MQTT();
   delay(10); // This delay ensures that client.publish doesn't clash with the client.connect call
   
@@ -221,7 +246,7 @@ void loop() {
   delay(10); // This delay ensures that US100 data upload is all good
 
 
-  // MQTT can only transmit strings
+  // MQTT can only transmit strings so format them properly
  
   String bmeTempStr=": "+String((float)bmeData[0])+" % ";
   String bmeHumidStr=": "+String((float)bmeData[3])+" % ";
@@ -229,7 +254,7 @@ void loop() {
   String bmePressureStr=": "+String((float)bmeData[1])+" % ";
 
 
-  // PUBLISH to the MQTT Broker (topic = Humidity, defined at the beginning)
+  // Publish all data to the MQTT Broker
   if (client.publish(temp_topic, String(bmeData[0]).c_str())) {
     delay(10); // This delay ensures that BME data upload is all good
     client.publish(humid_topic, String(bmeData[3]).c_str());
@@ -241,23 +266,21 @@ void loop() {
     client.publish(distance_topic, String(US100Data[0]).c_str());
     delay(10);
 
-    
+    // Sleep for 15 minutes if all is good
+    sleepTime = 900000;
+
     Serial.println("Weather data sent!");
   }
-  // Again, client.publish will return a boolean value depending on whether it succeded or not.
-  // If the message failed to send, we will try again, as the connection may have broken.
+
+  // client.publish will return a boolean value depending on whether it succeded or not.
+  // If the message failed to send, we will go to sleep, and try again in 5 minutes
   else {
-    Serial.println("Wifi Strength failed to send. Reconnecting to MQTT Broker and trying again");
-    client.connect(clientID, mqtt_username, mqtt_password);
-    delay(10); // This delay ensures that client.publish doesn't clash with the client.connect call
-    client.publish(temp_topic, String(bmeData[0]).c_str());
-    delay(10); // This delay ensures that BME data upload is all good
-    client.publish(humid_topic, String(bmeData[3]).c_str());
-    delay(10); // This delay ensures that BME data upload is all good
-    client.publish(altitude_topic, String(bmeData[2]).c_str());
-    delay(10); // This delay ensures that BME data upload is all good
-    client.publish(pressure_topic, String(bmeData[1]).c_str());
+    Serial.println("Weather data failed to send. Going to sleep and will just keep trying.");
+
+    // Sleep for 5 minutes and try again
+    sleepTime = 300000;
   }
+
   client.disconnect();  // disconnect from the MQTT broker
   
   WiFi.end(); //turn off wifi before sleep
@@ -266,8 +289,7 @@ void loop() {
 
   Serial.println("Going to sleep");
 
-  //float sleepTime = 900000; // Set to 15 minutes currently
-  LowPower.sleep(900000);
+  LowPower.sleep(sleepTime);
  
 
   digitalWrite(LED_BUILTIN, HIGH);    
