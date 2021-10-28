@@ -289,7 +289,7 @@ void loop() {
 
   Serial.println("Going to sleep");
 
-  LowPower.sleep(sleepTime);
+  LowPower.sleep(int(sleepTime));
  
 
   digitalWrite(LED_BUILTIN, HIGH);    
