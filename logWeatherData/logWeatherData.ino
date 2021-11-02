@@ -9,8 +9,6 @@
 #include "PubSubClient.h"
 #include <ArduinoLowPower.h>
 #include <RTCZero.h>
-
-
 #include <WiFiNINA.h>
 #include "arduino_secrets.h"
 
@@ -23,25 +21,29 @@ int INTERVAL = 1;
 // Define weather variables
 float bmeData[4];
 #define BME_PWR 6
-float US100Data[2];
+double US100_time;
+double US100_distance;
+#define US100_PWR 7
+#define US100_TRIG 4
+#define US100_ECHO 5
 
 // Create an rtc object for tracking time
 RTCZero rtc;
 
 // MQTT properties
-const char* mqtt_server = "192.168.50.100";  // IP of the MQTT broker
+const char* mqtt_server = "192.168.50.100";  // IP address of the MQTT broker
 const char* temp_topic = "outdoor/weather/temperature";
 const char* humid_topic = "outdoor/weather/humidity";
 const char* pressure_topic = "outdoor/weather/pressure";
 const char* altitude_topic = "outdoor/weather/altitude";
 const char* distance_topic = "outdoor/weather/distance";
-const char* mqtt_username = "akendrick"; // MQTT username
-const char* mqtt_password = "akendrick"; // MQTT password
+const char* mqtt_username = MQTT_user; // MQTT username
+const char* mqtt_password = MQTT_pass; // MQTT password
 const char* clientID = "arduino"; // MQTT client ID
 
 // Initialise the WiFi and MQTT Client objects
 WiFiClient wifiClient;
-// 1883 is the listener port for the Broker
+// 1883 is the listener port for the MQTT Broker
 PubSubClient client(mqtt_server, 1883, wifiClient);
 
 #define SEALEVELPRESSURE_HPA (1013.25)
@@ -55,8 +57,6 @@ unsigned int firstRun = 1;
 unsigned int HighLen = 0;
 unsigned int LowLen  = 0;
 unsigned int Len_mm  = 0;
-
-int US100_temp = 0;
 
 
 /****************************************
@@ -180,35 +180,35 @@ void getBMEData(float bmeData[4]) {
     
 }
 
-void getUS100Data(float US100Data[2])  {
-  Serial1.begin(9600);    
+float getUS100Data()  {
+  long timeHigh;
+
+  // Power ON the US-100 board
+  pinMode(US100_PWR, OUTPUT);
+  digitalWrite(US100_PWR, HIGH);
+  pinMode(US100_TRIG, OUTPUT);
+  pinMode(US100_ECHO, INPUT);
+
+  int val = 0;
+  val = digitalRead(US100_PWR);   // read the  pin
+  Serial.print("pin is:");
+  Serial.println(val);
+  delay(10);
+
+  // Make sure this pin is low
+  digitalWrite(US100_TRIG, LOW);
+  delayMicroseconds(2);
+  // Tell the US-100 to send an echo
+  digitalWrite(US100_TRIG, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(US100_TRIG, LOW);
   
-  while(Serial1.available())  
-  char t = Serial1.read(); 
+  // Measure how long it takes for the pulse to return
+  // this is in microseconds
+  timeHigh = pulseIn(US100_ECHO, HIGH);
+  US100_time = timeHigh;
 
-
-  Serial1.write(0X55);                           // trig US-100 begin to measure the distance
-  delay(500);                                   // delay 500ms to wait result
-
-  if(Serial1.available() >= 2)                   // when receive 2 bytes 
-    {
-        HighLen = Serial1.read();                   // High byte of distance
-        LowLen  = Serial1.read();                   // Low byte of distance
-        Len_mm  = HighLen*256 + LowLen;            // Calculate the distance
-        if((Len_mm > 1) && (Len_mm < 10000))       // normal distance should between 1mm and 10000mm (1mm, 10m)
-        {
-            Serial.print("Present Length is: ");   // output the result to serial monitor
-            Serial.print(Len_mm, DEC);             // output the result to serial monitor
-            Serial.println("mm");                  // output the result to serial monitor
-        }
-    }
-
-    delay(1000);                
-                                                
-
-
-US100Data[0] = Len_mm;
-US100Data[1] = 0;
+  return US100_time;
 }
 
 /****************************************
@@ -225,10 +225,11 @@ void setup() {
 
     Serial.println();
 
-    Serial1.begin(9600);
-    while(!Serial1); 
+    pinMode(US100_PWR, OUTPUT);
+    digitalWrite(US100_PWR, HIGH);
+    pinMode(US100_TRIG, OUTPUT);
+    pinMode(US100_ECHO, INPUT);
 
-    
 }
 
 
@@ -240,15 +241,32 @@ void loop() {
   delay(10); // This delay ensures that client.publish doesn't clash with the client.connect call
   
   getBMEData(bmeData);
-  delay(10); // This delay ensures that BME data upload is all good
+  delay(10); // This delay ensures that BME data is all good
 
-  getUS100Data(US100Data);
-  delay(10); // This delay ensures that US100 data upload is all good
+  US100_time = getUS100Data();
+  delay(10); // This delay ensures that US100 data is all good
 
+  Serial.print("Time high is:");
+  Serial.println(US100_time);
 
-  // MQTT can only transmit strings so format them properly
+  // Use temperature to calculate speed of sound, this is in m/s
+  double soundSpeed;
+  soundSpeed = 331.3 + 0.606 * bmeData[0];
+  Serial.print("Sound speed is:");
+  Serial.println(soundSpeed);
+  
+  // Use US-100 measurement and speed of sound to calculate object distance
+  // this is divided by two because the echo is bouncing off a surface
+  // and returning to the sensor
+  // soundSpeed is in m/s, US100 time in us, we want mm output
+  US100_distance = soundSpeed * US100_time / 2000;
+
+  Serial.print("The distance is:");
+  Serial.println(US100_distance);
  
-  String bmeTempStr=": "+String((float)bmeData[0])+" % ";
+  // MQTT can only transmit strings so format them properly
+
+   String bmeTempStr=": "+String((float)bmeData[0])+" % ";
   String bmeHumidStr=": "+String((float)bmeData[3])+" % ";
   String bmeAltStr=": "+String((float)bmeData[2])+" % ";
   String bmePressureStr=": "+String((float)bmeData[1])+" % ";
@@ -263,7 +281,7 @@ void loop() {
     delay(10); // This delay ensures that BME data upload is all good
     client.publish(pressure_topic, String(bmeData[1]).c_str());
     delay(10);
-    client.publish(distance_topic, String(US100Data[0]).c_str());
+    client.publish(distance_topic, String(US100_distance).c_str());
     delay(10);
 
     // Sleep for 15 minutes if all is good
@@ -290,8 +308,7 @@ void loop() {
   Serial.println("Going to sleep");
 
   LowPower.sleep(int(sleepTime));
- 
-
+  
   digitalWrite(LED_BUILTIN, HIGH);    
 
 
