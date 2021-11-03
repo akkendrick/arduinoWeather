@@ -99,9 +99,9 @@ void connect_MQTT(){
   Serial.println("WiFi connected");
   Serial.print("IP address: ");
   Serial.println(WiFi.localIP());
-// Connect to MQTT Broker
+  // Connect to MQTT Broker
   // client.connect returns a boolean value to let us know if the connection was successful.
-  // If the connection is failing, make sure you are using the correct MQTT Username and Password (Setup Earlier in the Instructable)
+  // If the connection is failing, make sure you are using the correct MQTT Username and Password 
   if (client.connect(clientID, mqtt_username, mqtt_password)) {
     Serial.println("Connected to MQTT Broker!");
   }
@@ -303,6 +303,7 @@ void loop() {
   
   WiFi.end(); //turn off wifi before sleep
 
+  // Using built-in LED to indicate when it is awake
   digitalWrite(LED_BUILTIN, LOW);   
 
   Serial.println("Going to sleep");

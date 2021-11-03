@@ -28,11 +28,12 @@ def on_connect(client, userdata, flags, rc):
                       ('outdoor/weather/altitude',1),('outdoor/weather/pressure',1)])
 
 def process_request(msg):
-    """A function to read wifi."""
+    """A function to read the published data."""
     timedat = datetime.datetime.now()
     print("Current Time:",datetime.datetime.now())
     print(msg.topic + ' ' + str(msg.payload))
 
+    # Save the weather data into a database
     cur.execute('INSERT INTO weatherData (timedat, name, value) values (str(timedat), str(msg.payload),str(msg.payload))')
     conn.commit()
 
@@ -52,6 +53,7 @@ def on_message(client, userdata, msg):
     process_request(msg)
 
 def setup_database():
+    """Set up the database for storing the data"""
     conn = sqlite3.connect('YOUR PATH')
     cur = conn.cursor()
     cur.execute('CREATE TABLE weatherData (timedat VARCHAR, name VARCHAR, value VARCHAR)')
