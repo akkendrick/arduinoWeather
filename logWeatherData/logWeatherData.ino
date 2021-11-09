@@ -43,7 +43,9 @@ const char* clientID = "arduino"; // MQTT client ID
 
 // Initialise the WiFi and MQTT Client objects
 WiFiClient wifiClient;
-// 1883 is the listener port for the MQTT Broker
+
+// Connect to the computer running MQTT, 
+// it is listening on port 1883 
 PubSubClient client(mqtt_server, 1883, wifiClient);
 
 #define SEALEVELPRESSURE_HPA (1013.25)
@@ -101,7 +103,6 @@ void connect_MQTT(){
   Serial.println(WiFi.localIP());
   // Connect to MQTT Broker
   // client.connect returns a boolean value to let us know if the connection was successful.
-  // If the connection is failing, make sure you are using the correct MQTT Username and Password 
   if (client.connect(clientID, mqtt_username, mqtt_password)) {
     Serial.println("Connected to MQTT Broker!");
   }
@@ -263,13 +264,7 @@ void loop() {
 
   Serial.print("The distance is:");
   Serial.println(US100_distance);
- 
-  // MQTT can only transmit strings so format them properly
 
-   String bmeTempStr=": "+String((float)bmeData[0])+" % ";
-  String bmeHumidStr=": "+String((float)bmeData[3])+" % ";
-  String bmeAltStr=": "+String((float)bmeData[2])+" % ";
-  String bmePressureStr=": "+String((float)bmeData[1])+" % ";
 
 
   // Publish all data to the MQTT Broker

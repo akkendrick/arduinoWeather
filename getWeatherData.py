@@ -5,7 +5,7 @@ import datetime
 import sqlite3
 import os
 from dotenv import load_dotenv
-
+from sqlite3 import Error
 load_dotenv()
 
 ############ modify this for your prometheus variables #############
@@ -36,45 +36,99 @@ def on_connect(client, userdata, flags, rc):
 
 def process_request(msg):
     """A function to read the published data over mqtt."""
-    timedat = datetime.datetime.now()
+    timeVal = datetime.datetime.now()
     # Print the timestep to make sure it is working now 
     print("Current Time:",datetime.datetime.now())
     # Print the message 
-    print(msg.topic + ' ' + str(msg.payload))
+    msgStr = str(msg.payload)
+    goodMsg = msgStr[2:-1]
 
-    # Save the weather data into a database
-    cur.execute('INSERT INTO weatherData (timedat, name, value) values (str(timedat), str(msg.payload),str(msg.payload))')
-    conn.commit()
+    print(msg.topic + ' ' + goodMsg)
+
 
     # Make sure we associate prometheus logs with the correct mqtt variable
-    # This publishes the mqtt variables to a prometheus gauge
+    # This publishes the mqtt variables to a prometheus gauge  
+    # Also insert the data into the SQLite table 
     if msg.topic ==  'outdoor/weather/temperature':
         temp.set(msg.payload)
+        sqlMsg = (str(timeVal),str(goodMsg),None,None,None);
+        insert_database(sqlMsg)
     elif msg.topic == 'outdoor/weather/humidity':
         hum.set(msg.payload)
+        sqlMsg = (str(timeVal),None,str(goodMsg),None,None);
+        insert_database(sqlMsg)
     elif msg.topic == 'outdoor/weather/altitude':
         alt.set(msg.payload)
+        sqlMsg = (str(timeVal),None,None,None,str(goodMsg));
+        insert_database(sqlMsg)
     elif msg.topic == 'outdoor/weather/pressure':
         pres.set(msg.payload)
+        sqlMsg = (str(timeVal),None,None,str(goodMsg),None);
+        insert_database(sqlMsg)
+    elif msg.topic == 'outdoor/weather/distance':
+        dist.set(msg.payload)
     else:
         print('Incorrect topic')
 
 def on_message(client, userdata, msg):
-    """ Run the following command when a message is received""" 
+    """ Run the following command when a MQTT message is received""" 
     process_request(msg)
-
+    
 def setup_database():
     """Set up the database for storing the data sent by mqtt"""
-    conn = sqlite3.connect('YOUR PATH')
+    databasePath =  os.environ.get("SQL_PATH")
+    databasePath = str(databasePath)+"/mqtt.sqlite"
+    
+    conn = None
+    try:
+        conn = sqlite3.connect(databasePath)
+    except Error as e:
+        print(e)
+
+    return conn
+
+
+def createTable(databasePath):
+    """Make the SQLite table if it doesn't exist"""
+    sql_create_weatherData_table = 'CREATE TABLE IF NOT EXISTS weatherData (id integer PRIMARY KEY,timedat text NOT NULL, temperature text, humidity text, pressure text, altitude text);'
+    conn = setup_database()
+
+    
+    # create table
+    if conn is not None:
+        c = conn.cursor()
+        c.execute(sql_create_weatherData_table)
+    else:
+        print("Error! cannot create the database connection.")
+
+
+
+    
+def insert_database(sqlMsg):
+    """Save the weather data into a database"""
+
+    databasePath =  os.environ.get("SQL_PATH")
+    databasePath = str(databasePath)+"/mqtt.sqlite"
+    
+    conn = sqlite3.connect(databasePath)
+    
+    
+    sql  ='INSERT INTO weatherData (timedat, temperature, humidity, pressure, altitude) values(?,?,?,?,?)'
+
     cur = conn.cursor()
-    cur.execute('CREATE TABLE weatherData (timedat VARCHAR, name VARCHAR, value VARCHAR)')
+    cur.execute(sql, sqlMsg) 
     conn.commit()
+
+    
+
+
 
 def main():
     # Start the Prometheus server
     start_http_server(8000)
     # Setup the SQLlite database
-    setup_database()
+    databasePath = setup_database()
+    createTable(databasePath)
 
     # Start mqtt client
     mqtt_client = mqtt.Client(MQTT_CLIENT_ID)
@@ -83,7 +137,7 @@ def main():
     # Specify what programs to call when mqtt conditions are met
     mqtt_client.on_connect = on_connect
     mqtt_client.on_message = on_message
-
+    
     # Setup mqtt on a port
     mqtt_client.connect(MQTT_ADDRESS, 1883)
     # Keep running forever
