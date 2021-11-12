@@ -15,6 +15,7 @@ temp = Gauge('temperature', 'Weather Station Temperature')
 hum = Gauge('humidity', 'Weather Station Humidity')
 alt = Gauge('altitude', 'Weather Station Altitude')
 pres = Gauge('pressure', 'Weather Station Pressure')
+dist = Gauge('distance', 'Weather Station Distance')
 #####################################################################
 
 ############ modify this for your mqtt config ##############
@@ -32,7 +33,8 @@ def on_connect(client, userdata, flags, rc):
     print('Connected with result code ' + str(rc)) 
     # Subscribe mqtt to the following variables
     client.subscribe([('outdoor/weather/temperature',1),('outdoor/weather/humidity',1),
-                      ('outdoor/weather/altitude',1),('outdoor/weather/pressure',1)])
+                      ('outdoor/weather/altitude',1),('outdoor/weather/pressure',1),
+                      ('outdoor/weather/distance',1)])
 
 def process_request(msg):
     """A function to read the published data over mqtt."""
