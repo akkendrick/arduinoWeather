@@ -21,8 +21,6 @@ int INTERVAL = 1;
 // Define weather variables
 float bmeData[4];
 #define BME_PWR 6
-double US100_time;
-double US100_distance;
 #define US100_PWR 7
 #define US100_TRIG 4
 #define US100_ECHO 5
@@ -52,8 +50,10 @@ PubSubClient client(mqtt_server, 1883, wifiClient);
 
 Adafruit_BME280 bme; // I2C
 
+float US100_time;
 unsigned long delayTime;
 unsigned int firstRun = 1;
+unsigned long boxDistance = 606;
 
 // the US-100 module has the jumper cap on the back.
 unsigned int HighLen = 0;
@@ -192,8 +192,6 @@ float getUS100Data()  {
 
   int val = 0;
   val = digitalRead(US100_PWR);   // read the  pin
-  Serial.print("pin is:");
-  Serial.println(val);
   delay(10);
 
   // Make sure this pin is low
@@ -237,18 +235,28 @@ void setup() {
 void loop() {
 
   float sleepTime;
-
+  float US100_distance;
+  float US100_time1;
+  float US100_time2;
+  float US100_time3;
+  float US100_avgTime;  
+  float accumulatedHeight;
+  
   connect_MQTT();
   delay(10); // This delay ensures that client.publish doesn't clash with the client.connect call
   
   getBMEData(bmeData);
   delay(10); // This delay ensures that BME data is all good
 
-  US100_time = getUS100Data();
+  US100_time1 = getUS100Data();
   delay(10); // This delay ensures that US100 data is all good
+  US100_time2 = getUS100Data();
+  delay(10); // This delay ensures that US100 data is all good
+  US100_time3 = getUS100Data();
 
+  US100_avgTime = (US100_time1 + US100_time2 + US100_time3)/3;
   Serial.print("Time high is:");
-  Serial.println(US100_time);
+  Serial.println(US100_avgTime);
 
   // Use temperature to calculate speed of sound, this is in m/s
   double soundSpeed;
@@ -260,10 +268,12 @@ void loop() {
   // this is divided by two because the echo is bouncing off a surface
   // and returning to the sensor
   // soundSpeed is in m/s, US100 time in us, we want mm output
-  US100_distance = soundSpeed * US100_time / 2000;
+  US100_distance = soundSpeed * US100_avgTime / 2000;
+  // Use defined box distance to calculate accumulation
+  accumulatedHeight = boxDistance - US100_distance;
 
-  Serial.print("The distance is:");
-  Serial.println(US100_distance);
+  Serial.print("The accumulated height is:");
+  Serial.println(accumulatedHeight);
 
 
 
@@ -276,7 +286,7 @@ void loop() {
     delay(10); // This delay ensures that BME data upload is all good
     client.publish(pressure_topic, String(bmeData[1]).c_str());
     delay(10);
-    client.publish(distance_topic, String(US100_distance).c_str());
+    client.publish(distance_topic, String(accumulatedHeight).c_str());
     delay(10);
 
     // Sleep for 15 minutes if all is good
