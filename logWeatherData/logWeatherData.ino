@@ -29,7 +29,7 @@ float bmeData[4];
 RTCZero rtc;
 
 // MQTT properties
-const char* mqtt_server = "192.168.50.100";  // IP address of the MQTT broker
+const char* mqtt_server = "192.168.50.111";  // IP address of the MQTT broker
 const char* temp_topic = "outdoor/weather/temperature";
 const char* humid_topic = "outdoor/weather/humidity";
 const char* pressure_topic = "outdoor/weather/pressure";

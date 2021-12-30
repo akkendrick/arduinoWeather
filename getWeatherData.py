@@ -24,7 +24,7 @@ MQTT_USER = os.environ.get("MQTT_USER")
 MQTT_PASSWORD = os.environ.get("MQTT_PASSWORD") 
 MQTT_TOPIC = 'outdoor/weather/temperature'
 MQTT_REGEX = 'home/([^/]+)/([^/]+)'
-MQTT_CLIENT_ID = 'raspberrypi'
+MQTT_CLIENT_ID = 'Zeus'
 ########################################################
 
 def on_connect(client, userdata, flags, rc):
