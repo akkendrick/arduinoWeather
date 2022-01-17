@@ -215,7 +215,7 @@ float getUS100Data()  {
 ****************************************/
 void setup() {
     Serial.begin(9600);
-    while(!Serial);    // time to get serial running
+    delay(10); 
     
     rtc.begin(); // enable real time clock functionalities
 
