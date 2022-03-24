@@ -104,9 +104,11 @@ void connect_MQTT(){
   // Connect to MQTT Broker
   // client.connect returns a boolean value to let us know if the connection was successful.
   if (client.connect(clientID, mqtt_username, mqtt_password)) {
+    delay(10000);
     Serial.println("Connected to MQTT Broker!");
   }
   else {
+    delay(10000);
     Serial.println("Connection to MQTT Broker failed...");
   }
 }
@@ -236,6 +238,9 @@ void loop() {
 
   float sleepTime;
   float US100_distance;
+  float US100_distance1;
+  float US100_distance2;
+  float US100_distance3;
   float US100_time1;
   float US100_time2;
   float US100_time3;
@@ -248,21 +253,63 @@ void loop() {
   getBMEData(bmeData);
   delay(10); // This delay ensures that BME data is all good
 
-  US100_time1 = getUS100Data();
-  delay(10); // This delay ensures that US100 data is all good
-  US100_time2 = getUS100Data();
-  delay(10); // This delay ensures that US100 data is all good
-  US100_time3 = getUS100Data();
-
-  US100_avgTime = (US100_time1 + US100_time2 + US100_time3)/3;
-  Serial.print("Time high is:");
-  Serial.println(US100_avgTime);
-
   // Use temperature to calculate speed of sound, this is in m/s
   double soundSpeed;
   soundSpeed = 331.3 + 0.606 * bmeData[0];
   Serial.print("Sound speed is:");
   Serial.println(soundSpeed);
+
+  US100_time1 = getUS100Data();
+  US100_distance1 = soundSpeed * US100_time1 / 2000;
+  
+  int iter = 0;
+  
+  while (US100_distance1 > boxDistance) {
+    US100_time1 = getUS100Data();
+    US100_distance1 = soundSpeed * US100_time1 / 2000;
+    iter = iter + 1;
+    if (iter >= 20) {
+      US100_time1 = 630/soundSpeed * 2000;
+      break;
+    }
+  }
+
+  delay(10); // This delay ensures that US100 data is all good
+  US100_time2 = getUS100Data();
+  US100_distance2 = soundSpeed * US100_time2 / 2000;
+  
+  iter = 0;
+  
+  while (US100_distance2 > boxDistance) {
+    US100_time2 = getUS100Data();
+    US100_distance2 = soundSpeed * US100_time2 / 2000;
+    iter = iter + 1;
+    if (iter > 20) {
+      US100_time2 = 630/soundSpeed * 2000;
+      break;
+    }
+  }
+  
+  delay(10); // This delay ensures that US100 data is all good
+  US100_time3 = getUS100Data();
+  US100_distance3 = soundSpeed * US100_time3 / 2000;
+  
+  iter = 0;
+  
+  while (US100_distance3 > boxDistance) {
+    US100_time3 = getUS100Data();
+    US100_distance3 = soundSpeed * US100_time3 / 2000;
+    iter = iter + 1;
+    if (iter > 20) {
+      US100_time3 = 630/soundSpeed * 2000;
+      break;
+    }
+  }
+
+  US100_avgTime = (US100_time1 + US100_time2 + US100_time3)/3;
+  Serial.print("Time high is:");
+  Serial.println(US100_avgTime);
+
   
   // Use US-100 measurement and speed of sound to calculate object distance
   // this is divided by two because the echo is bouncing off a surface
