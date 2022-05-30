@@ -24,7 +24,8 @@ float bmeData[4];
 #define US100_PWR 7
 #define US100_TRIG 4
 #define US100_ECHO 5
-
+#define wind_pin A1
+#define rain_pin 0
 // Create an rtc object for tracking time
 RTCZero rtc;
 
@@ -35,6 +36,8 @@ const char* humid_topic = "outdoor/weather/humidity";
 const char* pressure_topic = "outdoor/weather/pressure";
 const char* altitude_topic = "outdoor/weather/altitude";
 const char* distance_topic = "outdoor/weather/distance";
+const char* rain_topic = "outdoor/weather/rain";
+const char* wind_topic = "outdoor/weather/wind";
 const char* mqtt_username = MQTT_user; // MQTT username
 const char* mqtt_password = MQTT_pass; // MQTT password
 const char* clientID = "arduino"; // MQTT client ID
@@ -59,6 +62,8 @@ unsigned long boxDistance = 606;
 unsigned int HighLen = 0;
 unsigned int LowLen  = 0;
 unsigned int Len_mm  = 0;
+
+float rainfall;
 
 
 /****************************************
@@ -183,9 +188,16 @@ void getBMEData(float bmeData[4]) {
     
 }
 
+float getWindData() {
+  float windVoltage; 
+  
+  windVoltage = analogRead(wind_pin);
+
+  return(windVoltage);
+}
+
 float getUS100Data()  {
   long timeHigh;
-
   // Power ON the US-100 board
   pinMode(US100_PWR, OUTPUT);
   digitalWrite(US100_PWR, HIGH);
@@ -212,6 +224,21 @@ float getUS100Data()  {
   return US100_time;
 }
 
+void callback() {
+  // This function will be called once on device wakeup
+  // You can do some little operations here (like changing variables which will be used in the loop)
+  // Remember to avoid calling delay() and long running functions since this functions executes in interrupt context
+  Serial.begin(9600);
+  delay(10);
+  float bucket = 0.01;
+  rainfall = rainfall + bucket; 
+  Serial.println("Running interrupt code"); 
+  Serial.print("Rain amount is: "); 
+  Serial.print(rainfall);
+  Serial.println(" in");
+
+}
+
 /****************************************
  * Main Functions
 ****************************************/
@@ -223,6 +250,7 @@ void setup() {
 
     pinMode(LED_BUILTIN, OUTPUT);    
    
+    LowPower.attachInterruptWakeup(7, callback, FALLING);
 
     Serial.println();
 
@@ -246,6 +274,7 @@ void loop() {
   float US100_time3;
   float US100_avgTime;  
   float accumulatedHeight;
+  float windVoltage;
   
   connect_MQTT();
   delay(10); // This delay ensures that client.publish doesn't clash with the client.connect call
@@ -322,6 +351,14 @@ void loop() {
   Serial.print("The accumulated height is:");
   Serial.println(accumulatedHeight);
 
+  windVoltage = getWindData();
+  Serial.print("The wind voltage is:");
+  Serial.println(windVoltage);
+  
+  Serial.print("Rain amount is: "); 
+  Serial.print(rainfall);
+  Serial.println(" in");
+
 
 
   // Publish all data to the MQTT Broker
@@ -335,9 +372,17 @@ void loop() {
     delay(10);
     client.publish(distance_topic, String(accumulatedHeight).c_str());
     delay(10);
+    client.publish(wind_topic, String(windVoltage).c_str());
+    delay(10);
+    client.publish(rain_topic, String(rainfall).c_str());
+    delay(10);
+
+
 
     // Sleep for 15 minutes if all is good
-    sleepTime = 900000;
+    //sleepTime = 900000;
+    sleepTime = 9000;
+
 
     Serial.println("Weather data sent!");
   }
@@ -348,8 +393,10 @@ void loop() {
     Serial.println("Weather data failed to send. Going to sleep and will just keep trying.");
 
     // Sleep for 5 minutes and try again
-    sleepTime = 300000;
+    //sleepTime = 300000;
+    sleepTime = 3000;
   }
+
 
   client.disconnect();  // disconnect from the MQTT broker
   
@@ -360,8 +407,12 @@ void loop() {
 
   Serial.println("Going to sleep");
 
-  LowPower.sleep(int(sleepTime));
-  
+  Serial.flush();  //if this line is commented out, only one cycle of "sleep" will show
+  Serial.end();   //if this line is commented out, only one cycle of "sleep" will show
+
+  //LowPower.sleep(int(sleepTime));
+  delay(int(sleepTime)); // This delay ensures that US100 data is all good
+
   digitalWrite(LED_BUILTIN, HIGH);    
 
 
