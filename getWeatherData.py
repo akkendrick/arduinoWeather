@@ -1,4 +1,4 @@
-import paho.mqtt.client as mqtt
+eyimport paho.mqtt.client as mqtt
 from prometheus_client import start_http_server, Summary, Gauge
 import time
 import datetime
@@ -11,11 +11,12 @@ load_dotenv()
 ############ modify this for your prometheus variables #############
 # There are different types of variables accepted by prometheus,
 # since these are all point measurements in time, Gauge is the right choice
-temp = Gauge('temperature', 'Weather Station Temperature')
-hum = Gauge('humidity', 'Weather Station Humidity')
-alt = Gauge('altitude', 'Weather Station Altitude')
-pres = Gauge('pressure', 'Weather Station Pressure')
-dist = Gauge('distance', 'Weather Station Distance')
+
+temp = Gauge('outdoor temperature', 'Weather Station Temperature')
+hum = Gauge('outdoor humidity', 'Weather Station Humidity')
+alt = Gauge('outdoor altitude', 'Weather Station Altitude')
+pres = Gauge('outdoor pressure', 'Weather Station Pressure')
+dist = Gauge('outdoor distance', 'Weather Station Distance')
 #####################################################################
 
 ############ modify this for your mqtt config ##############
